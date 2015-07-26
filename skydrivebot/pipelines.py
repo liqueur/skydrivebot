@@ -6,19 +6,19 @@
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
 import torndb
+from scrapy import log
 from skydrivebot.items import UserItem, ResourceItem
+from skydrivebot.settings import db
 from IPython import embed
-
-db = torndb.Connection('localhost:3306', 'sds', user='root', password='britten')
 
 class UserPipeline(object):
     def process_item(self, item, spider):
         if isinstance(item, UserItem):
-            sql = 'insert into user (origin, uk) values (%s, %s)'
+            sql = 'insert into user (origin, uk, share, follow) values (%s, %s, %s, %s)'
             try:
-                db.insert(sql, 'baiduyun', item['uk'])
-            except:
-                pass
+                db.insert(sql, 'baiduyun', item['uk'], 0, 0)
+            except Exception as e:
+                log.msg(e)
 
         return item
 
@@ -41,6 +41,6 @@ class ResourcePipeline(object):
                           item.get('d_cnt'),
                           item.get('t_cnt'))
             except Exception as e:
-                embed()
+                log.msg(e)
 
         return item

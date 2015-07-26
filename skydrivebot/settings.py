@@ -9,6 +9,8 @@
 #     http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
 #     http://scrapy.readthedocs.org/en/latest/topics/spider-middleware.html
 
+import torndb
+
 BOT_NAME = 'skydrivebot'
 
 SPIDER_MODULES = ['skydrivebot.spiders']
@@ -85,3 +87,4 @@ ITEM_PIPELINES = {
 #HTTPCACHE_IGNORE_HTTP_CODES=[]
 #HTTPCACHE_STORAGE='scrapy.extensions.httpcache.FilesystemCacheStorage'
 FOLLOW_URL = 'http://yun.baidu.com/pcloud/friend/getfollowlist?query_uk={uk}&limit=24&start={start}'
+db = torndb.Connection('127.0.0.1:3306', 'sds', user='root', password='britten')

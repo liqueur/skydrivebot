@@ -1,40 +1,36 @@
 #coding:utf-8
 
+import torndb
 import scrapy
 import json
 import re
 from scrapy.spiders import Spider
-from skydrivebot.items import ResourceItem, UserItem
+from skydrivebot.items import ResourceItem
+from skydrivebot.settings import db
 
-class SkyDriveSpider(Spider):
-    name = 'sds'
+class ShareSpider(Spider):
+    name = 'share'
     allowed_domains = ['yun.baidu.com']
     bd_short_share_url = 'http://yun.baidu.com/s/{shorturl}'
     bd_share_url = 'http://yun.baidu.com/share/link?uk={uk}&shareid={shareid}'
     share_url = 'http://yun.baidu.com/pcloud/feed/getsharelist?auth_type=1&start={start}&limit=60&query_uk={uk}'
     share_referer_url = 'http://yun.baidu.com/share/home?uk={uk}&view=share'
-    wap_follow_url = 'http://yun.baidu.com/wap/share/home/followers?uk={uk}&third=0&start={start}'
-    album_url = 'http://yun.baidu.com/pcloud/album/info?uk={uk}&album_id={album_id}'
-    start_urls = [wap_follow_url.format(uk=1208824379, start=0)]
+
+    def start_requests(self):
+        running = db.get('select share_running from status')['share_running']
+        if running:
+            return []
+        else:
+            db.update('update status set share_running=1')
+            rows = db.query('select uk from user where share=0 limit 10')
+            for row in rows:
+                db.update('update user set share=1 where uk=%s', row['uk'])
+            return [scrapy.FormRequest(self.share_url.format(uk=row['uk'], start=0), callback=self.parse) for row in rows]
+
+    def closed(self, reason):
+        db.update('update status set share_running=0')
 
     def parse(self, response):
-        uk = re.findall(r'uk=(\d+)', response.request.url)[0]
-        yield scrapy.Request(self.share_url.format(uk=uk, start=0), callback=self.parse_share_count)
-        follower_total_count = int(re.findall(r"totalCount:\"(\d+)\"", response.body)[0])
-        if follower_total_count > 0:
-            urls = [self.wap_follow_url.format(uk=uk, start=start) for start in range(0, follower_total_count, 20)]
-
-            for url in urls:
-                yield scrapy.Request(url, callback=self.parse_follow)
-
-    def parse_follow(self, response):
-        follow_uk_list = re.findall(r"follow_uk\\\":(\d+)", response.body)
-
-        for uk in follow_uk_list:
-            yield UserItem(uk=uk)
-            yield scrapy.Request(self.wap_follow_url.format(uk=uk, start=0), callback=self.parse)
-
-    def parse_share_count(self, response):
         total_count = int(json.loads(response.body)['total_count'])
 
         if total_count > 0:
