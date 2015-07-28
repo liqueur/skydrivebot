@@ -7,6 +7,7 @@ import re
 from scrapy.spiders import Spider
 from skydrivebot.items import ResourceItem
 from skydrivebot.settings import db
+from scrapy import log
 
 class ShareSpider(Spider):
     name = 'share'
@@ -17,21 +18,19 @@ class ShareSpider(Spider):
     share_referer_url = 'http://yun.baidu.com/share/home?uk={uk}&view=share'
 
     def start_requests(self):
-        running = db.get('select share_running from status')['share_running']
-        if running:
-            return []
-        else:
-            db.update('update status set share_running=1')
-            rows = db.query('select uk from user where share=0 limit 10')
-            for row in rows:
-                db.update('update user set share=1 where uk=%s', row['uk'])
-            return [scrapy.FormRequest(self.share_url.format(uk=row['uk'], start=0), callback=self.parse) for row in rows]
-
-    def closed(self, reason):
-        db.update('update status set share_running=0')
+        rows = db.query('select uk from user where share=0 limit 10')
+        for row in rows:
+            db.update('update user set share=1 where uk=%s', row['uk'])
+        return [scrapy.FormRequest(self.share_url.format(uk=row['uk'], start=0), callback=self.parse) for row in rows]
 
     def parse(self, response):
-        total_count = int(json.loads(response.body)['total_count'])
+        uk = re.findall(r'uk=(\d+)', response.request.url)[0]
+        try:
+            total_count = int(json.loads(response.body)['total_count'])
+        except KeyError as e:
+            log.msg(e)
+            db.update('update user set share=2 where uk=%s', uk)
+            return
 
         if total_count > 0:
             uk = re.findall(r'query_uk=(\d+)', response.request.url)[0]
